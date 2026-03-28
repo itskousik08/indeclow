@@ -1,0 +1,10 @@
+python-telegram-bot==20.7
+requests==2.31.0
+python-dotenv==1.0.0
+pyngrok==7.0.5
+gitpython==3.1.40
+aiohttp==3.9.1
+aiofiles==23.2.1
+rich==13.7.0
+colorama==0.4.6
+psutil==5.9.6
