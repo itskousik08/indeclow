@@ -66,7 +66,7 @@ INDECLOW (**IN**telligent **DE**velopment **C**ontroller with **L**LM-powered **
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/axeroai/indeclow.git
+git clone https://github.com/itskousik08/indeclow.git
 cd indeclow
 ```
 
