@@ -1,1 +1,317 @@
-
+{
+  "_meta": {
+    "system": "INDECLOW by AxeroAI",
+    "version": "1.0.0",
+    "description": "Tool definitions mapped to INDECLOW agent execution layer",
+    "agent_mapping": {
+      "Task":        "RequirementAgent / PlannerAgent / SkillAgent",
+      "Bash":        "TerminalAgent",
+      "Glob":        "TerminalAgent / DebugAgent",
+      "Grep":        "DebugAgent / DeveloperAgent",
+      "LS":          "TerminalAgent",
+      "Read":        "All Agents",
+      "Write":       "DeveloperAgent / TerminalAgent",
+      "Edit":        "UpdateAgent",
+      "MultiEdit":   "UpdateAgent",
+      "WebFetch":    "SkillAgent / RequirementAgent",
+      "TodoWrite":   "PlannerAgent",
+      "WebSearch":   "RequirementAgent / DebugAgent",
+      "BashOutput":  "TerminalAgent",
+      "KillBash":    "TerminalAgent"
+    }
+  },
+  "tools": [
+    {
+      "name": "Task",
+      "agent": "RequirementAgent / PlannerAgent / SkillAgent",
+      "description": "Launch a new INDECLOW sub-agent to handle complex, multi-step tasks autonomously.\n\nAvailable agent types and the tools they have access to:\n- general-purpose: General-purpose agent for researching complex questions, searching for code, and executing multi-step tasks. When searching for a keyword or file and not confident the first few tries will find the right match, use this agent. (Tools: *)\n- statusline-setup: Use this agent to configure the user's INDECLOW status line setting. (Tools: Read, Edit)\n- output-style-setup: Use this agent to create an INDECLOW output style. (Tools: Read, Write, Edit, Glob, LS, Grep)\n\nWhen using the Task tool, you must specify a subagent_type parameter.\n\nWhen NOT to use the Task tool:\n- If you want to read a specific file path, use Read or Glob instead\n- If you are searching for a specific class definition, use Glob instead\n- If you are searching within 2-3 specific files, use Read instead\n\nUsage notes:\n1. Launch multiple agents concurrently whenever possible for maximum performance\n2. Each agent invocation is stateless — include a highly detailed task description\n3. Clearly tell the agent whether to write code or just research\n4. If the agent description says to use it proactively, do so without waiting for the user to ask",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "A short (3-5 word) description of the task"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "The task for the agent to perform"
+          },
+          "subagent_type": {
+            "type": "string",
+            "description": "The type of specialized agent to use for this task"
+          }
+        },
+        "required": ["description", "prompt", "subagent_type"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "Bash",
+      "agent": "TerminalAgent",
+      "description": "Executes a bash command in a persistent shell session with optional timeout.\n\nBefore executing:\n1. Directory Verification: Use LS to verify the parent directory before creating new dirs/files\n2. Always quote file paths that contain spaces with double quotes\n3. Capture and log all output\n\nSafety rules (enforced by TerminalAgent):\n- All commands are validated against the safe command whitelist in config.py\n- Blocked patterns from BLOCKED_COMMANDS list are rejected\n- Destructive commands require explicit user confirmation\n- Every command is logged with description, returncode, stdout, stderr\n\nUsage notes:\n- ALWAYS use ripgrep (rg) instead of grep in bash\n- Use ';' or '&&' to chain commands, not newlines\n- Use absolute paths, avoid cd where possible\n- For long-running commands, use run_in_background: true\n\nGit commit format (when user explicitly asks):\ngit commit -m \"$(cat <<'EOF'\n   Commit message here.\n\n   Generated with INDECLOW by AxeroAI\n\n   Co-Authored-By: INDECLOW <noreply@axeroai.com>\n   EOF\n   )\"",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The command to execute"
+          },
+          "timeout": {
+            "type": "number",
+            "description": "Optional timeout in milliseconds (max 600000)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Clear, concise description of what this command does in 5-10 words"
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description": "Set to true to run this command in the background"
+          }
+        },
+        "required": ["command"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "Glob",
+      "agent": "TerminalAgent / DebugAgent",
+      "description": "Fast file pattern matching tool that works with any codebase size.\n- Supports glob patterns like '**/*.js' or 'src/**/*.ts'\n- Returns matching file paths sorted by modification time\n- Use when you need to find files by name patterns\n- For open-ended searches requiring multiple rounds, use Task instead",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "The glob pattern to match files against"
+          },
+          "path": {
+            "type": "string",
+            "description": "The directory to search in. Omit to use current working directory."
+          }
+        },
+        "required": ["pattern"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "Grep",
+      "agent": "DebugAgent / DeveloperAgent",
+      "description": "Powerful search tool built on ripgrep.\n- ALWAYS use Grep for search tasks. NEVER invoke grep or rg as a Bash command.\n- Supports full regex syntax\n- Filter files with glob parameter (e.g. '*.js', '**/*.tsx')\n- Output modes: 'content' shows matching lines, 'files_with_matches' shows only paths, 'count' shows match counts\n- Use Task tool for open-ended searches requiring multiple rounds",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pattern": {"type": "string", "description": "The regex pattern to search for"},
+          "path": {"type": "string", "description": "File or directory to search in"},
+          "glob": {"type": "string", "description": "Glob pattern to filter files"},
+          "output_mode": {
+            "type": "string",
+            "enum": ["content", "files_with_matches", "count"],
+            "description": "Output mode (default: files_with_matches)"
+          },
+          "-B": {"type": "number", "description": "Lines before match (requires output_mode: content)"},
+          "-A": {"type": "number", "description": "Lines after match (requires output_mode: content)"},
+          "-C": {"type": "number", "description": "Lines before and after match (requires output_mode: content)"},
+          "-n": {"type": "boolean", "description": "Show line numbers"},
+          "head_limit": {"type": "number", "description": "Max results to return"},
+          "type": {"type": "string", "description": "File type filter (e.g. js, py, rust)"},
+          "multiline": {"type": "boolean", "description": "Enable multiline matching"}
+        },
+        "required": ["pattern"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "LS",
+      "agent": "TerminalAgent",
+      "description": "Lists files and directories at a given path. Always use before creating new files or directories to verify the target location exists.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string", "description": "The absolute path of the directory to list"},
+          "ignore": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Glob patterns to ignore"
+          }
+        },
+        "required": ["path"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "Read",
+      "agent": "All Agents",
+      "description": "Reads the contents of a file at the given path. For image files, returns base64-encoded content. Use before editing any file to understand existing content and conventions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {"type": "string", "description": "The absolute path of the file to read"},
+          "offset": {"type": "number", "description": "Line number to start reading from (1-indexed)"},
+          "limit": {"type": "number", "description": "Number of lines to read"}
+        },
+        "required": ["file_path"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "Write",
+      "agent": "DeveloperAgent / TerminalAgent",
+      "description": "Writes content to a file, creating it or overwriting it entirely. Use for new file creation. For partial updates to existing files, use Edit instead (UpdateAgent).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {"type": "string", "description": "The absolute path of the file to write"},
+          "content": {"type": "string", "description": "The content to write to the file"}
+        },
+        "required": ["file_path", "content"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "Edit",
+      "agent": "UpdateAgent",
+      "description": "Makes targeted edits to an existing file by replacing specific text. INDECLOW's UpdateAgent uses this exclusively — never rewrites whole files.\n\nRules:\n- old_string must match exactly once in the file\n- Maintain proper indentation and code style\n- For multiple edits to the same file, use MultiEdit instead",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {"type": "string", "description": "The absolute path of the file to edit"},
+          "old_string": {"type": "string", "description": "The exact text to replace"},
+          "new_string": {"type": "string", "description": "The replacement text"},
+          "replace_all": {"type": "boolean", "description": "Replace all occurrences (default: false)"}
+        },
+        "required": ["file_path", "old_string", "new_string"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "MultiEdit",
+      "agent": "UpdateAgent",
+      "description": "Makes multiple targeted edits to a single file atomically. Preferred over multiple sequential Edit calls for efficiency. All edits are applied in order.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {"type": "string", "description": "The absolute path of the file to edit"},
+          "edits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "old_string": {"type": "string"},
+                "new_string": {"type": "string"},
+                "replace_all": {"type": "boolean"}
+              },
+              "required": ["old_string", "new_string"]
+            },
+            "description": "Array of edit operations to apply in order"
+          }
+        },
+        "required": ["file_path", "edits"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "WebFetch",
+      "agent": "SkillAgent / RequirementAgent",
+      "description": "Fetches content from a URL. Used by SkillAgent to download GitHub repositories and by RequirementAgent to fetch documentation.\n\nNote: If the response contains a redirect to a different host, immediately make a new WebFetch request with the redirect URL.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "The URL to fetch"},
+          "prompt": {"type": "string", "description": "Specific information to extract from the page"}
+        },
+        "required": ["url", "prompt"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "TodoWrite",
+      "agent": "PlannerAgent",
+      "description": "Used by PlannerAgent to create and manage structured task lists for build sessions.\n\nWhen to use:\n1. Complex multi-step tasks (3+ distinct steps)\n2. Non-trivial tasks requiring careful planning\n3. User provides multiple tasks\n4. After receiving new build instructions\n\nWhen NOT to use:\n1. Single, straightforward tasks\n2. Trivial tasks completable in < 3 steps\n3. Purely conversational responses\n\nTask states:\n- pending: Not yet started\n- in_progress: Currently working on (ONE at a time)\n- completed: Finished successfully\n\nIMPORTANT: Mark tasks complete IMMEDIATELY after finishing. Never batch completions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "todos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content": {"type": "string", "minLength": 1},
+                "status": {"type": "string", "enum": ["pending", "in_progress", "completed"]},
+                "id": {"type": "string"}
+              },
+              "required": ["content", "status", "id"],
+              "additionalProperties": false
+            },
+            "description": "The updated todo list"
+          }
+        },
+        "required": ["todos"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "WebSearch",
+      "agent": "RequirementAgent / DebugAgent",
+      "description": "Allows INDECLOW to search the web for current information.\n- Provides up-to-date information beyond training cutoff\n- Used by DebugAgent to find bug fixes and solutions\n- Used by RequirementAgent to gather tech stack information\n- Domain filtering supported to include or block specific websites",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "minLength": 2, "description": "The search query"},
+          "allowed_domains": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Only include results from these domains"
+          },
+          "blocked_domains": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Never include results from these domains"
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "BashOutput",
+      "agent": "TerminalAgent",
+      "description": "Retrieves output from a running or completed background bash shell.\n- Takes a bash_id identifying the shell\n- Returns only new output since last check\n- Supports optional regex filtering\n- Use to monitor long-running commands started with run_in_background: true",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bash_id": {"type": "string", "description": "The ID of the background shell"},
+          "filter": {"type": "string", "description": "Optional regex to filter output lines"}
+        },
+        "required": ["bash_id"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "KillBash",
+      "agent": "TerminalAgent",
+      "description": "Kills a running background bash shell by its ID. Use when a long-running command needs to be terminated.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "shell_id": {"type": "string", "description": "The ID of the background shell to kill"}
+        },
+        "required": ["shell_id"],
+        "additionalProperties": false,
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  ]
+}
